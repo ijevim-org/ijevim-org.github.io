@@ -28,7 +28,7 @@ features:
     details: syntect によるシンタックスハイライトを任意の syntax feature で有効化。
   - icon: 🔍
     title: レビューモード
-    details: git diff を TUI 上で確認し、ハンク操作とコメントをその場で行えます。
+    details: git diff の閲覧、ハンク / ファイル単位の stage、複数行コメント、検索とファイルフィルタを TUI 上で行えます。
 ---
 
 ## クイックスタート
@@ -45,4 +45,4 @@ Vim キーマップで起動するには:
 cargo run -- vim README.md
 ```
 
-利用可能なドキュメントはサイドバーから辿れます。まずは [キーバインド仕様](/keybindings) を読んでください。
+利用可能なドキュメントはサイドバーから辿れます。まずは [キーバインド仕様](/keybindings) を読んでください。git の差分を確認する場合は [レビューモード](/review) を参照してください。

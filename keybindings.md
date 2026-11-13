@@ -9,7 +9,7 @@ This document tracks keybinding behavior implemented in the current codebase.
 - Key dispatch in `src/keymap/vim.rs` routes Ctrl+letter bindings and delegates mode-specific handling to methods on `Editor` (`handle_normal`, `handle_insert`, `handle_command`, `handle_visual`, `handle_replace`).
 - Vim state machine (pending operators, count prefix, text objects) lives in `Editor` fields.
 
-### Vim-supported operations (complete list in `docs/keymap-vim.md`)
+### Vim-supported operations (complete list in [Vim キーマップ互換レベル](/keymap-vim))
 
 - **Movement**: `h` `j` `k` `l` `w` `b` `e` `0` `^` `$` `gg` `G` `%` `f` `F` `t` `T` `;` `,`
 - **Insert**: `i` `a` `A` `o` `O` `R` `s` `S` `C` `D`
@@ -36,7 +36,7 @@ This document tracks keybinding behavior implemented in the current codebase.
 - Modeless (always in editor mode), no explicit Normal/Insert distinction.
 - Key dispatch in `src/keymap/emacs.rs` handles Ctrl, Meta, prefix sequences, and literal keys.
 
-### Emacs-supported operations (complete list in `docs/keymap-emacs.md`)
+### Emacs-supported operations (complete list in [Emacs キーマップ互換レベル](/keymap-emacs))
 
 - **Movement**: `C-f` `C-b` `C-n` `C-p` `C-a` `C-e` `M-f` `M-b` `M-v`
 - **Arrow keys**: `Up` `Down` `Left` `Right` `Home` `End` `PageUp` `PageDown`
@@ -50,6 +50,12 @@ This document tracks keybinding behavior implemented in the current codebase.
 - **Screen**: `C-l` (clear + recenter), `C-v` (scroll up one)
 - **Abort**: `C-g`
 - **Prefix chording**: `C-x` waits for next chord
+
+## レビューモード
+
+`:review` で起動する git diff 閲覧モードです。ファイル一覧、diff ナビゲーション、
+ハンク / ファイルの stage、複数行コメント、検索、ファイルフィルタを提供します。
+キーの全一覧と操作手順は [レビューモード](/review) を参照してください。
 
 ## Notes
 

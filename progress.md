@@ -1,96 +1,93 @@
 # Review Mode — Implementation Progress
 
-> Last updated: 2026-06-08
+> Last updated: 2026-11-13
 
 ## Goal
-Add Review Mode (git diff browsing + code review workflow + proofreading annotations) to the ijevim TUI editor.
 
-## Phases
+Add Review Mode (git diff browsing, staging, and proofreading annotations) to the
+ijevim TUI editor.
 
-### ✅ Phase 1: Foundation (Done)
-- Data model in `src/review/state.rs` — ReviewState, DiffFile, Hunk, DiffLine, ReviewSubMode, DiffStyle, ReviewArgs parser
-- `ReviewKeymap` in `src/keymap/review.rs` — KeymapHandler impl with sub-mode dispatch (FileList, DiffView, Preview, CommentInput, Help)
-- Key enum `Keymap::Review` in `src/types.rs`
-- `KeymapHandler` factory in `src/keymap/mod.rs` — create_keymap handles Review variant
-- `Engine.review_state: Option<ReviewState>` in `src/engine/mod.rs`
-- `Editor.enter_review_mode()` / `Editor.exit_review_mode()` with `saved_keymap` restore
-- `Editor.current_keymap` + `Editor.saved_keymap` fields (replaces heuristic)
-- `:review` command handler in `src/editor/cmd.rs`
-- Mock data in `src/review/mock.rs` (separate from `editor/mod.rs` to reduce recompilation)
+ユーザー向けの操作説明は [レビューモード](/review) を参照してください。このページは
+実装状況と設計上の判断を記録します。
 
-### ✅ Phase 2: Git Diff Integration (Done)
-- `src/review/diff.rs` — git CLI wrapper (`find_git_root`, `run_git_diff`, `parse_unified_diff`)
-- `try_get_review_state()` — falls back to mock if not in a git repo
-- 10 tests covering: empty diff, simple diff, multi-file, new file, deleted file, git root detection, `hunk_to_patch` reconstruction, stage/unstage integration
-- `enter_review_mode()` now calls `try_get_review_state()` → mock fallback
+## Current status
 
-### ✅ Phase 3: Rendering (Done)
-- `src/review/layout.rs` — panel layout computation (file list + diff + status bar)
-- `src/review/render.rs` — full review UI renderer
-  - File list panel with status colors (A/M/D/R)
-  - Unified diff with green/red backgrounds for add/delete lines
-  - Side-by-side diff with `d` toggle, `[S]` staged indicators
-  - Live file preview (reads from disk via `project_root`)
-  - Help overlay with all keybindings
-  - Status bar (mode, file info, change count, args, diff style)
-- `Renderer::render()` updated to delegate to review rendering
+レビューモードの主要機能は実装済みです。workspace のテスト、clippy
+（`-D warnings`）、rustfmt はすべて通っています。
 
-### ✅ Phase 4: Hunk Operations (Done)
-- `Hunk.staged: bool` — tracks staged state per hunk
-- `hunk_to_patch()` — reconstructs unified diff patch from parsed data
-- `stage_hunk()` / `unstage_hunk()` — `git apply --cached` / `--cached --reverse` CLI wrappers
-- Enter in DiffView toggles staged state + calls git apply
-- Visual `[S]` / `[ ]` indicator on hunk headers
-- `o`/`p` opens live file preview (reads actual file from disk)
-- Integration tests: temp git repo, stage/unstage hunk, verify with `git diff --cached`
+### Completed
 
-### ✅ Phase 5: Annotations (Done)
-- `src/review/annotations.rs` — annotation storage module
-  - JSON persistence in `.review/annotations.json` (no serde dependency — hand-written JSON)
-  - `add_annotation()`, `remove_annotation()`, `toggle_resolved()`, `load_annotations()`
-  - Annotation model: `{id, file_path, line, text, resolved, created_at}`
-  - Unique ID generation (nanosecond timestamp)
-- CommentInput sub-mode:
-  - `c` keybinding in DiffView opens a mini-buffer
-  - Full character input, backspace, cursor movement (Left/Right/Home/End/Delete)
-  - Enter saves (persists annotation) and returns to DiffView
-  - Esc cancels (discards buffer)
-  - Visual mini-buffer line rendered just above status bar with label + cursor
-- Annotation UI in diff view:
-  - `[1A]` marker on lines with unresolved annotations (yellow, bold)
-  - Count shown for multiple annotations on same line
-  - Visible in both unified and side-by-side modes
-  - Status bar shows annotation count when > 0
+#### Diff model and navigation
 
-### ✅ Phase 6: Polish & Edge Cases (Done)
-- `--staged`/`--cached` argument support — `ReviewArgs::Staged` + `run_git_diff` for `--cached`
-- HEAD/file argument support — `ReviewArgs::Against`, `ReviewArgs::File`, `ReviewArgs::Range`
-- Edge case handling:
-  - Binary files: parse skips them gracefully (no hunks → dropped by `build()`)
-  - Empty repos: `find_git_root` returns `None` → auto-falls back to mock data
-  - Large diffs: streaming line-by-line parser, display-side truncation
-- Status line improvements:
-  - Sub-mode indicator (`[files]`, `[diff]`, `[preview]`, `[comment]`, `[help]`)
-  - Annotation count shown in status bar when > 0
-- Tests: 3 new tests (binary diff skip, mixed binary/text, arg parsing)
-  - 18 total review/diff tests, 132 total project-wide
+- `crates/ijevim-tui/src/review/state.rs`
+  - `ReviewState`, `DiffFile`, `Hunk`, `DiffLine`, `Annotation`
+  - `ReviewArgs`（`WorkingTree` / `Staged` / `Against` / `Range` / `File`）
+- `crates/ijevim-tui/src/review/rows.rs`
+  - diff を行単位に平坦化する `DiffRow` モデル
+  - ハンクジャンプ、行番号から行への変換
+- カーソルは `ReviewState::cursor_row` を単一の情報源とし、keymap と renderer が
+  同じ行モデルを共有
+
+#### Git integration
+
+- `crates/ijevim-tui/src/review/diff.rs`
+  - `git -C <root>` で実行し、プロセスの cwd に依存しない
+  - `--src-prefix=a/ --dst-prefix=b/` を明示し、`diff.mnemonicprefix` の影響を排除
+  - quoted path、mnemonic prefix、タイムスタンプ付きヘッダを解析
+  - `\ No newline at end of file` を保持
+  - ハンク内の `+++` / `---` で始まる行をコンテンツとして扱う
+  - `hunk_to_patch()` で `git apply --cached` 用の patch を再構築
+  - `stage_hunk` / `unstage_hunk` / `stage_file` / `unstage_file` / `discard_file`
+  - staged 状態は `git diff --cached` から導出
+  - `reload()` でファイル選択と行位置を保ったまま再取得
+
+#### UI
+
+- `crates/ijevim-tui/src/review/render.rs`
+  - ファイル一覧、unified / side-by-side diff、プレビュー
+  - 行番号ガター、カーソル、stage マーカー、アノテーション件数
+  - アノテーション一覧、コメント入力、ヘルプ、検索 / フィルタプロンプト
+  - 複数行コメントの範囲ハイライト、検索マッチの背景ハイライト
+- `src/keymap/review.rs`
+  - FileList / DiffView / Preview / CommentInput / Annotations / SearchInput /
+    FilterInput のサブモード
+  - ハンク / ファイル操作、複数行選択、検索、フィルタ
+
+#### Annotations
+
+- `crates/ijevim-tui/src/review/annotations.rs`
+  - 保存先: `<git-dir>/ijevim/review/annotations.json`
+  - worktree の `.git` ファイルにも対応
+  - 旧 `.review/annotations.json` は読み取りフォールバック
+  - JSON version 2（`end_line` 追加、v1 も読み込み可能）
+  - `created_at` は ISO 8601 UTC
+  - serde は使わず手書き JSON を維持
+
+#### Tests
+
+- `crates/ijevim-tui/src/review/diff.rs`
+  - parser、prefix、quoted path、no-newline、added / deleted
+  - 一時 Git リポジトリを使った stage / unstage / discard / staged 導出
+- `crates/ijevim-tui/src/review/render.rs`
+  - フィルタ、検索表示、複数行アノテーション、visual 選択
+- `tests/editor_flow.rs`
+  - 実 Git リポジトリでのレビュー起動、コメント、複数行コメント、
+    ファイル操作、検索、フィルタ
 
 ## Key Decisions
-- Mock data in `src/review/mock.rs` so `editor/mod.rs` changes don't force full mock recompile
-- `[profile.dev] debug = 1` for line-tables-only debug info, saving ~30% compile time
-- `.cargo/config.toml` created with mold linker comment for future speedup
-- `ReviewKeymap` lives in `src/keymap/review.rs` following existing Vim/Emacs convention
-- `enter_review_mode` is sync (git CLI calls fast enough to block briefly)
-- `Enter` in DiffView = toggle hunk stage/unstage; `o`/`p` = open preview; `c` = add comment
 
-## Test Status
-- 132 tests pass (51 lib unit + 10 main unit + 71 integration)
-- 18 review/diff-specific tests (5 annotations + 13 diff)
-- `cargo clippy` has toolchain hash mismatch (Nix rustc vs clippy-driver) — not a code issue
-- No warnings in `cargo check`
-- `cargo check` recommended for fast feedback during development
+- GitHub / GitLab の PR 連携はスコープ外。ローカルの Git リポジトリだけを扱う。
+- デフォルトの diff は `HEAD` 基準。
+- アノテーションは worktree を汚さないよう Git ディレクトリ配下に保存する。
+- アノテーションはファイルパスと行番号で紐づける。内容追従は行わない。
+- 検索はスマートケース。`n` / `N` は検索が有効な間だけ検索移動になる。
+- ファイルフィルタはパスの大文字小文字を無視した部分一致。
+- stage 状態をメモリで反転せず、index から再導出して表示と実状態のずれを防ぐ。
 
-## Build Configuration
-- `Cargo.toml`: `[profile.dev] debug = 1, incremental = true`
-- `.cargo/config.toml`: mold linker comment
-- Context: `.env` has `CARGO_BUILD_INCREMENTAL=true`
+## Known limitations
+
+- 未追跡ファイルは stage 済み / intent-to-add でない限り diff に現れない。
+- バイナリファイルはハンクを持たないため一覧から除外される。
+- アノテーションは行番号ベースのため、コード変更で位置がずれることがある。
+- `--staged` 以外では staged 判定のために `git diff --cached` を追加実行する。
+- 構文ハイライトは diff 表示には適用していない。

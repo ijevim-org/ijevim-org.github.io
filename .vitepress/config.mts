@@ -21,6 +21,7 @@ export default defineConfig({
 
     nav: [
       { text: 'ガイド', link: '/keybindings' },
+      { text: 'レビュー', link: '/review' },
       { text: 'プラグイン', link: '/plugins' },
       { text: '開発', link: '/progress' },
     ],
@@ -31,6 +32,13 @@ export default defineConfig({
         items: [
           { text: '概要', link: '/' },
           { text: 'キーバインド仕様', link: '/keybindings' },
+        ],
+      },
+      {
+        text: 'レビューモード',
+        items: [
+          { text: '使い方', link: '/review' },
+          { text: '実装状況', link: '/progress' },
         ],
       },
       {
@@ -47,10 +55,7 @@ export default defineConfig({
       },
       {
         text: '開発',
-        items: [
-          { text: 'レビューモードの進捗', link: '/progress' },
-          { text: 'リリースチェックリスト', link: '/release-checklist' },
-        ],
+        items: [{ text: 'リリースチェックリスト', link: '/release-checklist' }],
       },
     ],
 
